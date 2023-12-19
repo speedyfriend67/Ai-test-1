@@ -19,8 +19,8 @@
     const canvas = document.getElementById('cartPoleCanvas');
     const ctx = canvas.getContext('2d');
 
-    const gamma = 0.95;  // Discount factor for future rewards
-    const epsilon = 0.2; // Exploration-exploitation trade-off
+    const gamma = 0.95;  
+    const epsilon = 0.2;
     const epsilonDecay = 0.995;
     const epsilonMin = 0.01;
     const learningRate = 0.1;
@@ -41,20 +41,18 @@
     let cartPosition, cartVelocity, poleAngle, poleAngularVelocity;
 
     function resetEnvironment() {
-      cartPosition = Math.random() * 4 - 2; // Initial cart position between -2 and 2
+      cartPosition = Math.random() * 4 - 2; 
       cartVelocity = 0;
-      poleAngle = Math.random() * 0.2 - 0.1; // Initial pole angle between -0.1 and 0.1
+      poleAngle = Math.random() * 0.2 - 0.1; 
       poleAngularVelocity = 0;
     }
 
     function drawCartPole() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // Draw cart
       ctx.fillStyle = 'blue';
       ctx.fillRect(cartPosition * 50 + canvas.width / 2 - 25, canvas.height - 20, 50, 20);
 
-      // Draw pole
       const poleLength = 100;
       const poleX = cartPosition * 50 + canvas.width / 2;
       const poleY = canvas.height - 20;
@@ -96,7 +94,6 @@
 
           const action = chooseAction(state);
 
-          // Simulate environment step
           const force = action === 0 ? -10 : 10;
           const gravity = 9.8;
           const massCart = 1;
@@ -117,7 +114,6 @@
 
           drawCartPole();
 
-          // Define rewards and check termination condition
           const reward = done ? -1 : 1;
           const nextState = [cartPosition, cartVelocity, poleAngle, poleAngularVelocity];
 
@@ -127,8 +123,6 @@
 
           await new Promise(resolve => requestAnimationFrame(resolve));
         }
-
-        // Update epsilon for exploration-exploitation trade-off
         epsilon *= epsilonDecay;
         epsilon = Math.max(epsilon, epsilonMin);
 
