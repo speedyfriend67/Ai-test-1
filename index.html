@@ -3,93 +3,140 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CartPole Balancing with TensorFlow.js</title>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-vis"></script>
+  <style>
+    canvas {
+      border: 1px solid #000;
+    }
+  </style>
+  <title>CartPole Balancing with TensorFlow.js</title>
 </head>
 <body>
+  <canvas id="cartPoleCanvas" width="400" height="400"></canvas>
+
   <script>
+    const canvas = document.getElementById('cartPoleCanvas');
+    const ctx = canvas.getContext('2d');
+
+    const gamma = 0.95;  // Discount factor for future rewards
+    const epsilon = 0.2; // Exploration-exploitation trade-off
+    const epsilonDecay = 0.995;
+    const epsilonMin = 0.01;
+    const learningRate = 0.1;
+
+    const numStates = 4;
+    const numActions = 2;
+
     const model = tf.sequential({
       layers: [
-        tf.layers.dense({ inputShape: [4], units: 24, activation: 'relu' }),
+        tf.layers.dense({ inputShape: [numStates], units: 24, activation: 'relu' }),
         tf.layers.dense({ units: 24, activation: 'relu' }),
-        tf.layers.dense({ units: 2, activation: 'linear' }) // 2 actions: move left or right
+        tf.layers.dense({ units: numActions, activation: 'linear' })
       ]
     });
 
-    model.compile({ optimizer: 'adam', loss: 'meanSquaredError' });
+    model.compile({ optimizer: tf.train.adam(learningRate), loss: 'meanSquaredError' });
 
-    const gamma = 0.95;  // Discount factor for future rewards
-    const epsilon = 1.0; // Exploration-exploitation trade-off
-    const epsilonDecay = 0.995;
-    const epsilonMin = 0.01;
-    const memory = [];
+    let cartPosition, cartVelocity, poleAngle, poleAngularVelocity;
 
-    // Function to choose an action using epsilon-greedy strategy
+    function resetEnvironment() {
+      cartPosition = Math.random() * 4 - 2; // Initial cart position between -2 and 2
+      cartVelocity = 0;
+      poleAngle = Math.random() * 0.2 - 0.1; // Initial pole angle between -0.1 and 0.1
+      poleAngularVelocity = 0;
+    }
+
+    function drawCartPole() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Draw cart
+      ctx.fillStyle = 'blue';
+      ctx.fillRect(cartPosition * 50 + canvas.width / 2 - 25, canvas.height - 20, 50, 20);
+
+      // Draw pole
+      const poleLength = 100;
+      const poleX = cartPosition * 50 + canvas.width / 2;
+      const poleY = canvas.height - 20;
+      const poleEndX = poleX + poleLength * Math.sin(poleAngle);
+      const poleEndY = poleY - poleLength * Math.cos(poleAngle);
+
+      ctx.beginPath();
+      ctx.moveTo(poleX, poleY);
+      ctx.lineTo(poleEndX, poleEndY);
+      ctx.strokeStyle = 'red';
+      ctx.lineWidth = 5;
+      ctx.stroke();
+    }
+
     function chooseAction(state) {
       if (Math.random() <= epsilon) {
-        return Math.floor(Math.random() * 2); // 2 actions: 0 (left) or 1 (right)
+        return Math.floor(Math.random() * numActions);
       } else {
         const qValues = model.predict(tf.tensor2d([state])).dataSync();
         return qValues[0] > qValues[1] ? 0 : 1;
       }
     }
 
-    // Training the model using Q-learning with experience replay
-    async function trainModel() {
-      const env = new rl.CartPole();
-      const numEpisodes = 1000;
+    function trainModel(state, action, reward, nextState, done) {
+      const target = model.predict(tf.tensor2d([state])).dataSync();
+      const nextQValues = model.predict(tf.tensor2d([nextState])).dataSync();
 
+      target[action] = reward + gamma * Math.max(...nextQValues) * (1 - done);
+
+      model.fit(tf.tensor2d([state]), tf.tensor2d([target]), { epochs: 1 });
+    }
+
+    async function runEpisodes(numEpisodes) {
       for (let episode = 0; episode < numEpisodes; episode++) {
-        let state = env.reset();
-        let totalReward = 0;
+        resetEnvironment();
 
-        while (true) {
+        for (let step = 0; step < 200; step++) { // Max 200 steps per episode
+          const state = [cartPosition, cartVelocity, poleAngle, poleAngularVelocity];
+
           const action = chooseAction(state);
-          const nextState = env.step(action);
 
-          // Calculate the reward
-          const reward = nextState.done ? -1 : 1;
+          // Simulate environment step
+          const force = action === 0 ? -10 : 10;
+          const gravity = 9.8;
+          const massCart = 1;
+          const massPole = 0.1;
+          const totalMass = massCart + massPole;
 
-          // Store the experience in memory
-          memory.push({ state, action, reward, nextState: nextState.observation, done: nextState.done });
+          const poleMoment = 0.5 * massPole * Math.sin(2 * poleAngle) * poleAngularVelocity ** 2;
+          const totalForce = force + poleMoment / totalMass;
 
-          state = nextState.observation;
-          totalReward += reward;
+          const acceleration = totalForce / totalMass;
 
-          if (nextState.done) {
-            // Experience replay
-            if (memory.length > 32) {
-              const minibatch = tf.data.array(memory).shuffle(32).batch(32);
-              await minibatch.forEachAsync(async (batch) => {
-                const states = tf.tensor2d(batch.map((exp) => exp.state));
-                const targets = model.predict(states).arraySync();
+          cartPosition += cartVelocity;
+          cartVelocity += acceleration;
 
-                const nextStates = tf.tensor2d(batch.map((exp) => exp.nextState));
-                const nextQValues = model.predict(nextStates).max(1);
+          const poleAngularAcceleration = (gravity * Math.sin(poleAngle) - acceleration * Math.cos(poleAngle)) / (0.5 * poleLength);
+          poleAngle += poleAngularVelocity;
+          poleAngularVelocity += poleAngularAcceleration;
 
-                for (let i = 0; i < batch.length; i++) {
-                  targets[i][batch[i].action] = batch[i].reward + gamma * nextQValues.dataSync()[i] * (1 - batch[i].done);
-                }
+          drawCartPole();
 
-                await model.fit(states, tf.tensor2d(targets), { epochs: 1 });
-              });
-            }
+          // Define rewards and check termination condition
+          const reward = done ? -1 : 1;
+          const nextState = [cartPosition, cartVelocity, poleAngle, poleAngularVelocity];
 
-            break;
-          }
+          trainModel(state, action, reward, nextState, done);
+
+          if (done) break;
+
+          await new Promise(resolve => requestAnimationFrame(resolve));
         }
 
         // Update epsilon for exploration-exploitation trade-off
         epsilon *= epsilonDecay;
         epsilon = Math.max(epsilon, epsilonMin);
 
-        console.log(`Episode: ${episode + 1}, Total Reward: ${totalReward}`);
+        console.log(`Episode: ${episode + 1}`);
       }
     }
 
-    // Start training the model
-    trainModel();
+    runEpisodes(100);
   </script>
 </body>
 </html>
