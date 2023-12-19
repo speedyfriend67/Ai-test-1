@@ -76,9 +76,9 @@
       ai.y1 += gravity;
       ai.y2 += gravity;
 
-      // Update X positions based on angles
-      ai.x1 = canvas.width / 2 - stickWidth / 2 + Math.sin(ai.angle1) * stickHeight;
-      ai.x2 = canvas.width / 2 - stickWidth / 2 + Math.sin(ai.angle2) * stickHeight;
+      // Lock X positions to initial values
+      ai.x1 = canvas.width / 2 - stickWidth / 2;
+      ai.x2 = canvas.width / 2 - stickWidth / 2;
 
       // Draw everything
       draw();
@@ -154,6 +154,4 @@
 
     // Start the game loop
     gameLoop();
-  </script>
-</body>
-</html>
+  </
