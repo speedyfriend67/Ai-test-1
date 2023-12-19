@@ -14,51 +14,46 @@
 </head>
 <body>
   <canvas id="cartPoleCanvas" width="400" height="400"></canvas>
-
   <script>
     const canvas = document.getElementById('cartPoleCanvas');
-    const ctx = canvas.getContext('2d');
+     const ctx = canvas.getContext('2d');
 
-    const gamma = 0.95;  
-    const epsilon = 0.2;
-    const epsilonDecay = 0.995;
-    const epsilonMin = 0.01;
-    const learningRate = 0.1;
+     const gamma = 0.95;  
+     let epsilon = 0.2;
+     const epsilonDecay = 0.995;
+     const epsilonMin = 0.01;
+     const learningRate = 0.1;
 
-    const numStates = 4;
-    const numActions = 2;
+     const numStates = 4;
+     const numActions = 2;
 
-    const model = tf.sequential({
-      layers: [
-        tf.layers.dense({ inputShape: [numStates], units: 24, activation: 'relu' }),
+     const poleLength = 100;
+     let done = true;
+
+     const model = tf.sequential({
+       layers: [
+         tf.layers.dense({ inputShape: [numStates], units: 24, activation: 'relu' }),
         tf.layers.dense({ units: 24, activation: 'relu' }),
         tf.layers.dense({ units: numActions, activation: 'linear' })
       ]
     });
-
     model.compile({ optimizer: tf.train.adam(learningRate), loss: 'meanSquaredError' });
-
     let cartPosition, cartVelocity, poleAngle, poleAngularVelocity;
-
     function resetEnvironment() {
       cartPosition = Math.random() * 4 - 2; 
       cartVelocity = 0;
       poleAngle = Math.random() * 0.2 - 0.1; 
       poleAngularVelocity = 0;
     }
-
     function drawCartPole() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+       ctx.fillStyle = 'blue';
+       ctx.fillRect(cartPosition * 50 + canvas.width / 2 - 25, canvas.height - 20, 50, 20);
 
-      ctx.fillStyle = 'blue';
-      ctx.fillRect(cartPosition * 50 + canvas.width / 2 - 25, canvas.height - 20, 50, 20);
-
-      const poleLength = 100;
-      const poleX = cartPosition * 50 + canvas.width / 2;
-      const poleY = canvas.height - 20;
-      const poleEndX = poleX + poleLength * Math.sin(poleAngle);
+       const poleX = cartPosition * 50 + canvas.width / 2;
+       const poleY = canvas.height - 20;
+       const poleEndX = poleX + poleLength * Math.sin(poleAngle);
       const poleEndY = poleY - poleLength * Math.cos(poleAngle);
-
       ctx.beginPath();
       ctx.moveTo(poleX, poleY);
       ctx.lineTo(poleEndX, poleEndY);
@@ -66,71 +61,60 @@
       ctx.lineWidth = 5;
       ctx.stroke();
     }
-
     function chooseAction(state) {
       if (Math.random() <= epsilon) {
         return Math.floor(Math.random() * numActions);
       } else {
         const qValues = model.predict(tf.tensor2d([state])).dataSync();
         return qValues[0] > qValues[1] ? 0 : 1;
-      }
-    }
+       }
+     }
 
-    function trainModel(state, action, reward, nextState, done) {
-      const target = model.predict(tf.tensor2d([state])).dataSync();
-      const nextQValues = model.predict(tf.tensor2d([nextState])).dataSync();
+     async function trainModel(state, action, reward, nextState, done) {
+       const target = model.predict(tf.tensor2d([state])).dataSync();
+       const nextQValues = model.predict(tf.tensor2d([nextState])).dataSync();
 
-      target[action] = reward + gamma * Math.max(...nextQValues) * (1 - done);
+       target[action] = reward + gamma * Math.max(...nextQValues) * (1 - done);
 
-      model.fit(tf.tensor2d([state]), tf.tensor2d([target]), { epochs: 1 });
-    }
+       await model.fit(tf.tensor2d([state]), tf.tensor2d([target]), { epochs: 1 });
+     }
 
-    async function runEpisodes(numEpisodes) {
+     async function runEpisodes(numEpisodes) {
       for (let episode = 0; episode < numEpisodes; episode++) {
         resetEnvironment();
-
         for (let step = 0; step < 200; step++) { // Max 200 steps per episode
           const state = [cartPosition, cartVelocity, poleAngle, poleAngularVelocity];
-
           const action = chooseAction(state);
-
           const force = action === 0 ? -10 : 10;
           const gravity = 9.8;
           const massCart = 1;
           const massPole = 0.1;
           const totalMass = massCart + massPole;
-
           const poleMoment = 0.5 * massPole * Math.sin(2 * poleAngle) * poleAngularVelocity ** 2;
           const totalForce = force + poleMoment / totalMass;
-
           const acceleration = totalForce / totalMass;
-
           cartPosition += cartVelocity;
           cartVelocity += acceleration;
-
           const poleAngularAcceleration = (gravity * Math.sin(poleAngle) - acceleration * Math.cos(poleAngle)) / (0.5 * poleLength);
           poleAngle += poleAngularVelocity;
           poleAngularVelocity += poleAngularAcceleration;
-
           drawCartPole();
+           const reward = done ? -1 : 1;
+           const nextState = [cartPosition, cartVelocity, poleAngle, poleAngularVelocity];
 
-          const reward = done ? -1 : 1;
-          const nextState = [cartPosition, cartVelocity, poleAngle, poleAngularVelocity];
+           await trainModel(state, action, reward, nextState, done);
 
-          trainModel(state, action, reward, nextState, done);
-
-          if (done) break;
+           if (done) break;
 
           await new Promise(resolve => requestAnimationFrame(resolve));
         }
         epsilon *= epsilonDecay;
         epsilon = Math.max(epsilon, epsilonMin);
-
         console.log(`Episode: ${episode + 1}`);
-      }
-    }
+       }
+     }
 
-    runEpisodes(100);
-  </script>
-</body>
-</html>
+     runEpisodes(10000);
+   </script>
+ </body>
+ </html>
