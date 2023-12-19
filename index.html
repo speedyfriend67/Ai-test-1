@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AI Learning to Balance Sticks</title>
+  <title>AI Balancing Two Sticks</title>
   <style>
     body {
       margin: 0;
@@ -29,13 +29,17 @@
 
     // AI
     const ai = {
-      x: canvas.width / 2 - stickWidth / 2,
-      y: canvas.height - groundHeight - stickHeight,
+      x1: canvas.width / 2 - stickWidth / 2,
+      y1: canvas.height - groundHeight - stickHeight,
+      x2: canvas.width / 2 - stickWidth / 2,
+      y2: canvas.height - groundHeight - stickHeight,
       width: stickWidth,
       height: stickHeight,
       color: "red",
-      angle: 0,
-      angularVelocity: 0
+      angle1: 0,
+      angle2: 0,
+      angularVelocity1: 0,
+      angularVelocity2: 0
     };
 
     // Actions
@@ -50,48 +54,66 @@
     const qTable = {};
 
     // Initialize Q-values
-    for (const action of actions) {
-      qTable[action] = 0;
+    for (const action1 of actions) {
+      for (const action2 of actions) {
+        qTable[`${action1}-${action2}`] = 0;
+      }
     }
 
-    // Update AI position and angle based on action
-    function updateAI(action) {
-      // Apply action
-      ai.angularVelocity += action * 0.1;
+    // Update AI position and angle based on actions
+    function updateAI(action1, action2) {
+      // Apply actions
+      ai.angularVelocity1 += action1 * 0.1;
+      ai.angularVelocity2 += action2 * 0.1;
 
-      // Update angle and position
-      ai.angle += ai.angularVelocity;
-      ai.angularVelocity *= 0.99; // Damping
+      // Update angles and positions
+      ai.angle1 += ai.angularVelocity1;
+      ai.angle2 += ai.angularVelocity2;
+      ai.angularVelocity1 *= 0.99; // Damping
+      ai.angularVelocity2 *= 0.99;
 
-      // Update position based on angle
-      ai.x = canvas.width / 2 - stickWidth / 2 + Math.sin(ai.angle) * stickHeight / 2;
-      ai.y = canvas.height - groundHeight - stickHeight / 2 - Math.cos(ai.angle) * stickHeight / 2;
+      // Update positions based on angles
+      ai.x1 = canvas.width / 2 - stickWidth / 2 + Math.sin(ai.angle1) * stickHeight / 2;
+      ai.y1 = canvas.height - groundHeight - stickHeight / 2 - Math.cos(ai.angle1) * stickHeight / 2;
+
+      ai.x2 = ai.x1 - Math.sin(ai.angle2) * stickHeight;
+      ai.y2 = ai.y1 - Math.cos(ai.angle2) * stickHeight;
 
       // Apply gravity
-      ai.angularVelocity += gravity;
+      ai.angularVelocity1 += gravity;
+      ai.angularVelocity2 += gravity;
 
       // Draw everything
       draw();
     }
 
-    // Choose action using epsilon-greedy strategy
-    function chooseAction() {
+    // Choose actions using epsilon-greedy strategy
+    function chooseActions() {
+      const key = chooseActionKey();
+      const [action1, action2] = key.split('-').map(Number);
+      return [action1, action2];
+    }
+
+    // Choose action key using epsilon-greedy strategy
+    function chooseActionKey() {
       if (Math.random() < explorationRate) {
         // Explore
-        return actions[Math.floor(Math.random() * actions.length)];
+        const action1 = actions[Math.floor(Math.random() * actions.length)];
+        const action2 = actions[Math.floor(Math.random() * actions.length)];
+        return `${action1}-${action2}`;
       } else {
         // Exploit (choose action with highest Q-value)
-        const bestAction = actions.reduce((best, action) => (qTable[action] > qTable[best] ? action : best), actions[0]);
-        return bestAction;
+        const bestKey = Object.keys(qTable).reduce((best, key) => (qTable[key] > qTable[best] ? key : best), Object.keys(qTable)[0]);
+        return bestKey;
       }
     }
 
     // Q-learning update
-    function qLearningUpdate(action, nextAction) {
-      const reward = Math.abs(ai.angle) < 1 ? 1 : 0; // Reward for balancing
+    function qLearningUpdate(key, nextKey) {
+      const reward = Math.abs(ai.angle1) < 1 && Math.abs(ai.angle2) < 1 ? 1 : 0; // Reward for balancing
 
       // Q-value update
-      qTable[action] += learningRate * (reward + discountFactor * qTable[nextAction] - qTable[action]);
+      qTable[key] += learningRate * (reward + discountFactor * qTable[nextKey] - qTable[key]);
     }
 
     // Draw the game elements
@@ -103,10 +125,16 @@
       ctx.fillStyle = "green";
       ctx.fillRect(0, canvas.height - groundHeight, canvas.width, groundHeight);
 
-      // Draw AI stick
+      // Draw AI sticks
+      drawStick(ai.x1, ai.y1, ai.angle1);
+      drawStick(ai.x2, ai.y2, ai.angle2);
+    }
+
+    // Draw a stick based on position and angle
+    function drawStick(x, y, angle) {
       ctx.save();
-      ctx.translate(ai.x + ai.width / 2, ai.y + ai.height / 2);
-      ctx.rotate(ai.angle);
+      ctx.translate(x + ai.width / 2, y + ai.height / 2);
+      ctx.rotate(angle);
       ctx.fillStyle = ai.color;
       ctx.fillRect(-ai.width / 2, -ai.height / 2, ai.width, ai.height);
       ctx.restore();
@@ -114,12 +142,15 @@
 
     // Game loop
     function gameLoop() {
-      const action = chooseAction();
-      updateAI(action);
+      const [action1, action2] = chooseActions();
+      updateAI(action1, action2);
 
       // Perform a random action for exploration
-      const nextAction = actions[Math.floor(Math.random() * actions.length)];
-      qLearningUpdate(action, nextAction);
+      const nextAction1 = actions[Math.floor(Math.random() * actions.length)];
+      const nextAction2 = actions[Math.floor(Math.random() * actions.length)];
+      const nextKey = `${nextAction1}-${nextAction2}`;
+      const key = `${action1}-${action2}`;
+      qLearningUpdate(key, nextKey);
 
       requestAnimationFrame(gameLoop);
     }
