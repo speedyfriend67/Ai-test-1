@@ -30,7 +30,7 @@
     // AI
     const ai = {
       x1: canvas.width / 2 - stickWidth / 2,
-      y1: canvas.height - groundHeight - stickHeight,
+      y1: canvas.height - groundHeight - stickHeight * 2, // Adjusted initial Y position
       x2: canvas.width / 2 - stickWidth / 2,
       y2: canvas.height - groundHeight - stickHeight,
       width: stickWidth,
@@ -77,8 +77,8 @@
       ai.y2 += gravity;
 
       // Update X positions based on angles
-      ai.x1 = canvas.width / 2 - stickWidth / 2 + Math.sin(ai.angle1) * stickHeight / 2;
-      ai.x2 = ai.x1 - Math.sin(ai.angle2) * stickHeight;
+      ai.x1 = canvas.width / 2 - stickWidth / 2 + Math.sin(ai.angle1) * stickHeight;
+      ai.x2 = canvas.width / 2 - stickWidth / 2 + Math.sin(ai.angle2) * stickHeight;
 
       // Draw everything
       draw();
