@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Basic AI</title>
+  <title>AI Learning to Balance Sticks</title>
   <style>
     body {
       margin: 0;
@@ -15,48 +15,116 @@
   </style>
 </head>
 <body>
-  <canvas id="aiCanvas" width="800" height="600"></canvas>
+  <canvas id="balanceCanvas" width="800" height="600"></canvas>
 
   <script>
-    const canvas = document.getElementById("aiCanvas");
+    const canvas = document.getElementById("balanceCanvas");
     const ctx = canvas.getContext("2d");
 
+    // Environment
+    const stickWidth = 20;
+    const stickHeight = 150;
+    const groundHeight = 20;
+    const gravity = 0.2;
+
+    // AI
     const ai = {
-      x: 50,
-      y: 50,
-      width: 20,
-      height: 20,
-      color: "red"
+      x: canvas.width / 2 - stickWidth / 2,
+      y: canvas.height - groundHeight - stickHeight,
+      width: stickWidth,
+      height: stickHeight,
+      color: "red",
+      angle: 0,
+      angularVelocity: 0
     };
 
-    function makeDecision() {
-      return Math.random() < 0.5 ? "left" : "right";
+    // Actions
+    const actions = [-1, 0, 1]; // -1: Move left, 0: Do nothing, 1: Move right
+
+    // Q-learning parameters
+    const learningRate = 0.1;
+    const discountFactor = 0.9;
+    const explorationRate = 0.1;
+
+    // Q-table
+    const qTable = {};
+
+    // Initialize Q-values
+    for (const action of actions) {
+      qTable[action] = 0;
     }
 
-    function updateAI() {
-      const decision = makeDecision();
+    // Update AI position and angle based on action
+    function updateAI(action) {
+      // Apply action
+      ai.angularVelocity += action * 0.1;
 
-      if (decision === "left") {
-        ai.x -= 2;
-      } else {
-        ai.x += 2;
-      }
+      // Update angle and position
+      ai.angle += ai.angularVelocity;
+      ai.angularVelocity *= 0.99; // Damping
 
+      // Update position based on angle
+      ai.x = canvas.width / 2 - stickWidth / 2 + Math.sin(ai.angle) * stickHeight / 2;
+      ai.y = canvas.height - groundHeight - stickHeight / 2 - Math.cos(ai.angle) * stickHeight / 2;
+
+      // Apply gravity
+      ai.angularVelocity += gravity;
+
+      // Draw everything
       draw();
     }
 
-    function draw() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      ctx.fillStyle = ai.color;
-      ctx.fillRect(ai.x, ai.y, ai.width, ai.height);
+    // Choose action using epsilon-greedy strategy
+    function chooseAction() {
+      if (Math.random() < explorationRate) {
+        // Explore
+        return actions[Math.floor(Math.random() * actions.length)];
+      } else {
+        // Exploit (choose action with highest Q-value)
+        const bestAction = actions.reduce((best, action) => (qTable[action] > qTable[best] ? action : best), actions[0]);
+        return bestAction;
+      }
     }
 
+    // Q-learning update
+    function qLearningUpdate(action, nextAction) {
+      const reward = Math.abs(ai.angle) < 1 ? 1 : 0; // Reward for balancing
+
+      // Q-value update
+      qTable[action] += learningRate * (reward + discountFactor * qTable[nextAction] - qTable[action]);
+    }
+
+    // Draw the game elements
+    function draw() {
+      // Clear the canvas
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Draw ground
+      ctx.fillStyle = "green";
+      ctx.fillRect(0, canvas.height - groundHeight, canvas.width, groundHeight);
+
+      // Draw AI stick
+      ctx.save();
+      ctx.translate(ai.x + ai.width / 2, ai.y + ai.height / 2);
+      ctx.rotate(ai.angle);
+      ctx.fillStyle = ai.color;
+      ctx.fillRect(-ai.width / 2, -ai.height / 2, ai.width, ai.height);
+      ctx.restore();
+    }
+
+    // Game loop
     function gameLoop() {
-      updateAI();
+      const action = chooseAction();
+      updateAI(action);
+
+      // Perform a random action for exploration
+      const nextAction = actions[Math.floor(Math.random() * actions.length)];
+      qLearningUpdate(action, nextAction);
+
       requestAnimationFrame(gameLoop);
     }
 
+    // Start the game loop
     gameLoop();
   </script>
 </body>
