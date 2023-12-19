@@ -1,1 +1,4 @@
-now made virtual memory storge so imma plan for the physics collabrations
+Fully Customizable Ai Pole Balance Traning. 
+GPT : 75% Helped
+@hvven : 24.9% Helped
+Me : 0.1% Helped
