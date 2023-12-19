@@ -3,125 +3,64 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AI Balancing Three Sticks</title>
   <style>
-    body {
-      margin: 0;
-      overflow: hidden;
-    }
     canvas {
-      display: block;
+      border: 1px solid #000;
     }
   </style>
+  <title>Stick Balancing AI</title>
 </head>
 <body>
-  <canvas id="balanceCanvas" width="800" height="600"></canvas>
+  <canvas id="stickCanvas" width="800" height="600"></canvas>
 
   <script>
-    const canvas = document.getElementById("balanceCanvas");
-    const ctx = canvas.getContext("2d");
+    const canvas = document.getElementById('stickCanvas');
+    const ctx = canvas.getContext('2d');
 
-    // Environment
-    const stickWidth = 20;
-    const stickHeight = 150;
-    const groundHeight = 20;
-    const gravity = 0.2;
+    const stickLength = 100;
+    const groundHeight = canvas.height - 50;
 
-    // AI
-    const ai = {
-      x1: canvas.width / 2 - stickWidth / 2,
-      y1: canvas.height - groundHeight - stickHeight * 2, // Adjusted initial Y position for the first stick
-      x2: canvas.width / 2 - stickWidth / 2,
-      y2: canvas.height - groundHeight - stickHeight,
-      x3: canvas.width / 2 - stickWidth / 2,
-      y3: canvas.height - groundHeight - stickHeight, // Adjusted initial Y position for the third stick
-      width: stickWidth,
-      height: stickHeight,
-      color1: "red",
-      color2: "red",
-      color3: "black", // Color for the third stick
-      angle1: 0,
-      angle2: 0,
-      angle3: 0,
-      angularVelocity1: 0,
-      angularVelocity2: 0,
-      angularVelocity3: 0
-    };
+    let stickAngle = 0;
+    let stickX = canvas.width / 2;
+    let stickY = groundHeight - stickLength;
 
-    // Actions
-    const actions = [-1, 0, 1]; // -1: Move left, 0: Do nothing, 1: Move right
+    function drawStick() {
+      const stickEndX = stickX + stickLength * Math.cos(stickAngle);
+      const stickEndY = stickY + stickLength * Math.sin(stickAngle);
 
-    // Q-learning parameters
-    const learningRate = 0.1;
-    const discountFactor = 0.9;
-    const explorationRate = 0.1;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Q-table
-    const qTable = {};
+      ctx.beginPath();
+      ctx.moveTo(stickX, stickY);
+      ctx.lineTo(stickEndX, stickEndY);
+      ctx.lineWidth = 5;
+      ctx.strokeStyle = 'red';
+      ctx.stroke();
+    }
 
-    // Initialize Q-values
-    for (const action1 of actions) {
-      for (const action2 of actions) {
-        for (const action3 of actions) {
-          qTable[`${action1}-${action2}-${action3}`] = 0;
-        }
+    function update() {
+      drawStick();
+    }
+
+    function handleKeyPress(event) {
+      if (event.key === 'ArrowLeft') {
+        stickAngle += 0.1;
+      } else if (event.key === 'ArrowRight') {
+        stickAngle -= 0.1;
       }
+
+      // Cap the angle to a reasonable range
+      stickAngle = Math.max(-Math.PI / 2, Math.min(stickAngle, Math.PI / 2));
     }
 
-    // Update AI position and angle based on actions
-    function updateAI(action1, action2, action3) {
-      // Apply actions
-      ai.angularVelocity1 += action1 * 0.1;
-      ai.angularVelocity2 += action2 * 0.1;
-      ai.angularVelocity3 += action3 * 0.1;
+    window.addEventListener('keydown', handleKeyPress);
 
-      // Update angles and angular velocities
-      ai.angle1 += ai.angularVelocity1;
-      ai.angle2 += ai.angularVelocity2;
-      ai.angle3 += ai.angularVelocity3;
-      ai.angularVelocity1 *= 0.99; // Damping
-      ai.angularVelocity2 *= 0.99;
-      ai.angularVelocity3 *= 0.99;
-
-      // Update Y positions based on gravity
-      ai.y1 += gravity;
-      ai.y2 += gravity;
-      ai.y3 += gravity;
-
-      // Lock X positions to initial values
-      ai.x1 = canvas.width / 2 - stickWidth / 2;
-      ai.x2 = canvas.width / 2 - stickWidth / 2;
-      ai.x3 = canvas.width / 2 - stickWidth / 2;
-
-      // Draw everything
-      draw();
+    function gameLoop() {
+      update();
+      requestAnimationFrame(gameLoop);
     }
 
-    // Choose actions using epsilon-greedy strategy
-    function chooseActions() {
-      const key = chooseActionKey();
-      const [action1, action2, action3] = key.split('-').map(Number);
-      return [action1, action2, action3];
-    }
-
-    // Choose action key using epsilon-greedy strategy
-    function chooseActionKey() {
-      if (Math.random() < explorationRate) {
-        // Explore
-        const action1 = actions[Math.floor(Math.random() * actions.length)];
-        const action2 = actions[Math.floor(Math.random() * actions.length)];
-        const action3 = actions[Math.floor(Math.random() * actions.length)];
-        return `${action1}-${action2}-${action3}`;
-      } else {
-        // Exploit (choose action with highest Q-value)
-        const bestKey = Object.keys(qTable).reduce((best, key) => (qTable[key] > qTable[best] ? key : best), Object.keys(qTable)[0]);
-        return bestKey;
-      }
-    }
-
-    // Q-learning update
-    function qLearningUpdate(key, nextKey) {
-      const reward = Math.abs(ai.angle1) < 1 && Math.abs(ai.angle2) < 1 && Math.abs(ai.angle3) < 1 ? 1 : 0; // Reward for balancing
-
-      // Q-value update
-      qTable[key] += learningRate * (reward + discountFactor * qTable
+    gameLoop();
+  </script>
+</body>
+</html>
