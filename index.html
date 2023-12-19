@@ -38,22 +38,20 @@
       ctx.stroke();
     }
 
+    function handleTouch(event) {
+      const touchX = event.touches[0].clientX;
+      const canvasRect = canvas.getBoundingClientRect();
+      const canvasX = touchX - canvasRect.left;
+
+      // Move the stick position based on touch input
+      stickX = Math.max(stickLength / 2, Math.min(canvas.width - stickLength / 2, canvasX));
+    }
+
+    canvas.addEventListener('touchmove', handleTouch);
+
     function update() {
       drawStick();
     }
-
-    function handleKeyPress(event) {
-      if (event.key === 'ArrowLeft') {
-        stickAngle += 0.1;
-      } else if (event.key === 'ArrowRight') {
-        stickAngle -= 0.1;
-      }
-
-      // Cap the angle to a reasonable range
-      stickAngle = Math.max(-Math.PI / 2, Math.min(stickAngle, Math.PI / 2));
-    }
-
-    window.addEventListener('keydown', handleKeyPress);
 
     function gameLoop() {
       update();
