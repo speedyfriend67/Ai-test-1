@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Basic AI</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+    }
+    canvas {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="aiCanvas" width="800" height="600"></canvas>
+
+  <script>
+    const canvas = document.getElementById("aiCanvas");
+    const ctx = canvas.getContext("2d");
+
+    const ai = {
+      x: 50,
+      y: 50,
+      width: 20,
+      height: 20,
+      color: "red"
+    };
+
+    function makeDecision() {
+      return Math.random() < 0.5 ? "left" : "right";
+    }
+
+    function updateAI() {
+      const decision = makeDecision();
+
+      if (decision === "left") {
+        ai.x -= 2;
+      } else {
+        ai.x += 2;
+      }
+
+      draw();
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      ctx.fillStyle = ai.color;
+      ctx.fillRect(ai.x, ai.y, ai.width, ai.height);
+    }
+
+    function gameLoop() {
+      updateAI();
+      requestAnimationFrame(gameLoop);
+    }
+
+    gameLoop();
+  </script>
+</body>
+</html>
