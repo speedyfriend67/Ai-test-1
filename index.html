@@ -21,11 +21,13 @@
     const canvas = document.getElementById("balanceCanvas");
     const ctx = canvas.getContext("2d");
 
+    // Environment
     const stickWidth = 20;
     const stickHeight = 150;
     const groundHeight = 20;
     const gravity = 0.2;
 
+    // AI
     const ai = {
       x1: canvas.width / 2 - stickWidth / 2,
       y1: canvas.height - groundHeight - stickHeight,
@@ -40,74 +42,92 @@
       angularVelocity2: 0
     };
 
+    // Actions
     const actions = [-1, 0, 1]; // -1: Move left, 0: Do nothing, 1: Move right
 
+    // Q-learning parameters
     const learningRate = 0.1;
     const discountFactor = 0.9;
     const explorationRate = 0.1;
 
+    // Q-table
     const qTable = {};
 
+    // Initialize Q-values
     for (const action1 of actions) {
       for (const action2 of actions) {
         qTable[`${action1}-${action2}`] = 0;
       }
     }
 
+    // Update AI position and angle based on actions
     function updateAI(action1, action2) {
+      // Apply actions
       ai.angularVelocity1 += action1 * 0.1;
       ai.angularVelocity2 += action2 * 0.1;
 
+      // Update angles and angular velocities
       ai.angle1 += ai.angularVelocity1;
       ai.angle2 += ai.angularVelocity2;
-      ai.angularVelocity1 *= 0.99;
+      ai.angularVelocity1 *= 0.99; // Damping
       ai.angularVelocity2 *= 0.99;
 
+      // Update Y positions based on gravity
+      ai.y1 += gravity;
+      ai.y2 += gravity;
+
+      // Update X positions based on angles
       ai.x1 = canvas.width / 2 - stickWidth / 2 + Math.sin(ai.angle1) * stickHeight / 2;
-      ai.y1 = canvas.height - groundHeight - stickHeight / 2 - Math.cos(ai.angle1) * stickHeight / 2;
-
       ai.x2 = ai.x1 - Math.sin(ai.angle2) * stickHeight;
-      ai.y2 = ai.y1 - Math.cos(ai.angle2) * stickHeight;
 
-      ai.angularVelocity1 += gravity;
-      ai.angularVelocity2 += gravity;
-
+      // Draw everything
       draw();
     }
 
+    // Choose actions using epsilon-greedy strategy
     function chooseActions() {
       const key = chooseActionKey();
       const [action1, action2] = key.split('-').map(Number);
       return [action1, action2];
     }
 
+    // Choose action key using epsilon-greedy strategy
     function chooseActionKey() {
       if (Math.random() < explorationRate) {
+        // Explore
         const action1 = actions[Math.floor(Math.random() * actions.length)];
         const action2 = actions[Math.floor(Math.random() * actions.length)];
         return `${action1}-${action2}`;
       } else {
+        // Exploit (choose action with highest Q-value)
         const bestKey = Object.keys(qTable).reduce((best, key) => (qTable[key] > qTable[best] ? key : best), Object.keys(qTable)[0]);
         return bestKey;
       }
     }
 
+    // Q-learning update
     function qLearningUpdate(key, nextKey) {
       const reward = Math.abs(ai.angle1) < 1 && Math.abs(ai.angle2) < 1 ? 1 : 0; // Reward for balancing
 
+      // Q-value update
       qTable[key] += learningRate * (reward + discountFactor * qTable[nextKey] - qTable[key]);
     }
 
+    // Draw the game elements
     function draw() {
+      // Clear the canvas
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+      // Draw ground
       ctx.fillStyle = "green";
       ctx.fillRect(0, canvas.height - groundHeight, canvas.width, groundHeight);
 
+      // Draw AI sticks
       drawStick(ai.x1, ai.y1, ai.angle1);
       drawStick(ai.x2, ai.y2, ai.angle2);
     }
 
+    // Draw a stick based on position and angle
     function drawStick(x, y, angle) {
       ctx.save();
       ctx.translate(x + ai.width / 2, y + ai.height / 2);
@@ -117,10 +137,12 @@
       ctx.restore();
     }
 
+    // Game loop
     function gameLoop() {
       const [action1, action2] = chooseActions();
       updateAI(action1, action2);
 
+      // Perform a random action for exploration
       const nextAction1 = actions[Math.floor(Math.random() * actions.length)];
       const nextAction2 = actions[Math.floor(Math.random() * actions.length)];
       const nextKey = `${nextAction1}-${nextAction2}`;
@@ -130,6 +152,7 @@
       requestAnimationFrame(gameLoop);
     }
 
+    // Start the game loop
     gameLoop();
   </script>
 </body>
