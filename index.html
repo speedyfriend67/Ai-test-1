@@ -20,13 +20,16 @@
     const ctx = canvas.getContext('2d');
 
     const gamma = 0.95;  
-    const epsilon = 0.2;
+    let epsilon = 0.2;
     const epsilonDecay = 0.995;
     const epsilonMin = 0.01;
     const learningRate = 0.1;
 
     const numStates = 4;
     const numActions = 2;
+
+    const poleLength = 100;
+    let done = true;
 
     const model = tf.sequential({
       layers: [
@@ -53,7 +56,6 @@
       ctx.fillStyle = 'blue';
       ctx.fillRect(cartPosition * 50 + canvas.width / 2 - 25, canvas.height - 20, 50, 20);
 
-      const poleLength = 100;
       const poleX = cartPosition * 50 + canvas.width / 2;
       const poleY = canvas.height - 20;
       const poleEndX = poleX + poleLength * Math.sin(poleAngle);
@@ -76,13 +78,13 @@
       }
     }
 
-    function trainModel(state, action, reward, nextState, done) {
+    async function trainModel(state, action, reward, nextState, done) {
       const target = model.predict(tf.tensor2d([state])).dataSync();
       const nextQValues = model.predict(tf.tensor2d([nextState])).dataSync();
 
       target[action] = reward + gamma * Math.max(...nextQValues) * (1 - done);
 
-      model.fit(tf.tensor2d([state]), tf.tensor2d([target]), { epochs: 1 });
+      await model.fit(tf.tensor2d([state]), tf.tensor2d([target]), { epochs: 1 });
     }
 
     async function runEpisodes(numEpisodes) {
@@ -117,7 +119,7 @@
           const reward = done ? -1 : 1;
           const nextState = [cartPosition, cartVelocity, poleAngle, poleAngularVelocity];
 
-          trainModel(state, action, reward, nextState, done);
+          await trainModel(state, action, reward, nextState, done);
 
           if (done) break;
 
@@ -130,7 +132,7 @@
       }
     }
 
-    runEpisodes(100);
+    runEpisodes(10000);
   </script>
 </body>
 </html>
