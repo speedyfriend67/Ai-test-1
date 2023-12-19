@@ -1,115 +1,95 @@
 <!DOCTYPE html>
-<html>
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width">
-    <title>Cart Pole Render</title>
-    <style>
-      #container {
-        background: -o-linear-gradient(rgb(207,221,172),rgb(255,255,255));/* fallback for old browsers */
-        background: -webkit-linear-gradient(to right, #630c7d #41ffe2); /* Chrome 10-25, Safari 5.1-6 */
-        background: -moz-linear-gradient( right,  #451577,#27c5db ); /* W3C, IE 10+/ Edge, Firefox 16+, Chrome 26+, Opera 12+, Safari 7+ */
-      }
-    </style>
-  </head>
-  <body>
-    <div id="container"></div>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.18.0/axios.min.js"></script>
-    <script>
-const conatiner = document.getElementById('container');
-function createSimulation(container) {
-  const POLE_ANGLE_THRESHOLD = 12 * Math.PI/180; // 12 Degrees in Radians
-  const CART_POSITION_THRESHOLD = 2.4;
-  const CONTAINER_WIDTH = 640;
-  const CART_WIDTH = 30;
-  const POLE_WIDTH = 5;
-  
-  const HALF_CONTAINER_WIDTH = CONTAINER_WIDTH / 2;
-  const HALF_CART_WIDTH = CART_WIDTH / 2;
-  container.style.width = `${CONTAINER_WIDTH}px`;
-  container.style.height = '320px';
-  container.style.position = 'relative';
-  
-  // Create Cart DOM Element
-  const cart = document.createElement('div');
-  cart.classList.add('cart');
-  cart.style.width = `${CART_WIDTH}px`;
-  cart.style.height = '20px';
-  cart.style.background = '#c27a05';
-  cart.style.position = 'absolute';
-  cart.style.top = '240px';
-  
-  // Create Pole DOM element
-  const pole = document.createElement('div');
-  pole.classList.add('pole');
-  pole.style.width = `${POLE_WIDTH}px`;
-  pole.style.height = '90px';
-  pole.style.background = ' #e5ffff';
-  pole.style.transformOrigin = '50% 5px';
-  pole.style.marginLeft = `${Math.floor(CART_WIDTH / 2 - POLE_WIDTH / 2)}px`;
-  
-  const score = document.createElement('div');
-  score.style.position = 'absolute';
-  score.style.fontFamily = '"Helvetica Neue", Helvetica, Arial, sans-serif';
-  score.style.padding = '15px';
-  score.style.color = '#ff0055';
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CartPole Balancing with TensorFlow.js</title>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-vis"></script>
+</head>
+<body>
+  <script>
+    const model = tf.sequential({
+      layers: [
+        tf.layers.dense({ inputShape: [4], units: 24, activation: 'relu' }),
+        tf.layers.dense({ units: 24, activation: 'relu' }),
+        tf.layers.dense({ units: 2, activation: 'linear' }) // 2 actions: move left or right
+      ]
+    });
 
-  
-  const message = document.createElement('div');
-  message.style.position = 'absolute';
-  message.style.fontFamily = '"Helvetica Neue", Helvetica, Arial, sans-serif';
-  message.style.padding = '15px';
-  message.style.color = 'red';
-  message.style.top = '35px';
-  
-  // Attach DOM elements to parents
-  cart.appendChild(pole);
-  container.appendChild(score);
-  container.appendChild(cart);
-  container.appendChild(message);
-  
-  // Function for setting the state of our simulator
-  function setState(cartPosition, poleAngle, step) {
-    const left = HALF_CONTAINER_WIDTH - HALF_CART_WIDTH + (HALF_CONTAINER_WIDTH * (cartPosition/ 2.5))
-    cart.style.left=`${left}px`;
-    
-    pole.style.transform = `rotate(${-Math.PI + poleAngle}rad)`;
-    
-    score.innerHTML = `Score: ${step}`;
-    
-    if (poleAngle >= POLE_ANGLE_THRESHOLD || poleAngle <= -1 * POLE_ANGLE_THRESHOLD) {
-      message.innerHTML = 'Game Over: Pole Angle Too Far';
-    } else if (cartPosition >= CART_POSITION_THRESHOLD || cartPosition <= -1 * CART_POSITION_THRESHOLD) {
-      message.innerHTML = 'Game Over: Cart Too Far';
-    } else {
-      message.innerHTML = '';
+    model.compile({ optimizer: 'adam', loss: 'meanSquaredError' });
+
+    const gamma = 0.95;  // Discount factor for future rewards
+    const epsilon = 1.0; // Exploration-exploitation trade-off
+    const epsilonDecay = 0.995;
+    const epsilonMin = 0.01;
+    const memory = [];
+
+    // Function to choose an action using epsilon-greedy strategy
+    function chooseAction(state) {
+      if (Math.random() <= epsilon) {
+        return Math.floor(Math.random() * 2); // 2 actions: 0 (left) or 1 (right)
+      } else {
+        const qValues = model.predict(tf.tensor2d([state])).dataSync();
+        return qValues[0] > qValues[1] ? 0 : 1;
+      }
     }
-  }
-  
-  setState(0, 0, 0); // Reset State
-  
-  return setState;
-}
-const setState = createSimulation(container);
-const FPS = 50;
-axios.get('/data').then(function(response) {
-  if (response.data == null) {
-    throw new Error('No data found');
-  }
-  const states = response.data;
-  
-  let intervalHandle = 0;
-  let i = 0;
-  function stepState() {
-    if (i >= states.length) {
-      return clearInterval(intervalHandle);
+
+    // Training the model using Q-learning with experience replay
+    async function trainModel() {
+      const env = new rl.CartPole();
+      const numEpisodes = 1000;
+
+      for (let episode = 0; episode < numEpisodes; episode++) {
+        let state = env.reset();
+        let totalReward = 0;
+
+        while (true) {
+          const action = chooseAction(state);
+          const nextState = env.step(action);
+
+          // Calculate the reward
+          const reward = nextState.done ? -1 : 1;
+
+          // Store the experience in memory
+          memory.push({ state, action, reward, nextState: nextState.observation, done: nextState.done });
+
+          state = nextState.observation;
+          totalReward += reward;
+
+          if (nextState.done) {
+            // Experience replay
+            if (memory.length > 32) {
+              const minibatch = tf.data.array(memory).shuffle(32).batch(32);
+              await minibatch.forEachAsync(async (batch) => {
+                const states = tf.tensor2d(batch.map((exp) => exp.state));
+                const targets = model.predict(states).arraySync();
+
+                const nextStates = tf.tensor2d(batch.map((exp) => exp.nextState));
+                const nextQValues = model.predict(nextStates).max(1);
+
+                for (let i = 0; i < batch.length; i++) {
+                  targets[i][batch[i].action] = batch[i].reward + gamma * nextQValues.dataSync()[i] * (1 - batch[i].done);
+                }
+
+                await model.fit(states, tf.tensor2d(targets), { epochs: 1 });
+              });
+            }
+
+            break;
+          }
+        }
+
+        // Update epsilon for exploration-exploitation trade-off
+        epsilon *= epsilonDecay;
+        epsilon = Math.max(epsilon, epsilonMin);
+
+        console.log(`Episode: ${episode + 1}, Total Reward: ${totalReward}`);
+      }
     }
-    const state = states[i++];
-    setState(state[0], state[2], i-1);
-  }
-  
-  intervalHandle = setInterval(stepState, 1000/FPS);
-});
-    </script>
-  </body>
+
+    // Start training the model
+    trainModel();
+  </script>
+</body>
 </html>
