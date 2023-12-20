@@ -1,4 +1,4 @@
 Fully Customizable Ai Pole Balance Traning. 
-GPT : 75% Helped
-@hvven : 24.9% Helped
-Me : 0.1% Helped
+GPT Helped for base code frameworks
+@hvven Helped for bug fixing
+Me Helped for designs
